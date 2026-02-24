@@ -64,6 +64,11 @@ const GAME_OPTIONS: Array<{ value: GameType; label: string }> = [
   { value: "power645", label: "Mega 6/45" }
 ];
 
+interface SubmitState {
+  ok: boolean;
+  text: string;
+}
+
 function toPercent(value: number): string {
   return `${(value * 100).toFixed(3)}%`;
 }
@@ -89,12 +94,36 @@ function buildPredictUrl(params: QueryParams): string {
   return `/api/predict?${search.toString()}`;
 }
 
+function getGameNumberMax(game: GameType): number {
+  return game === "power655" ? 55 : 45;
+}
+
+function parseManualNumbers(input: string): number[] {
+  if (!input.trim()) {
+    return [];
+  }
+
+  return input
+    .split(/[\s,;|]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => Number(item));
+}
+
 export default function HomePage() {
   const [query, setQuery] = useState<QueryParams>(DEFAULT_QUERY);
   const [data, setData] = useState<PredictionPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [apiToken, setApiToken] = useState("");
+  const [manualDrawId, setManualDrawId] = useState("");
+  const [manualDrawDate, setManualDrawDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [manualNumbers, setManualNumbers] = useState("");
+  const [manualBonus, setManualBonus] = useState("");
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualState, setManualState] = useState<SubmitState | null>(null);
+  const latestDrawId = data?.latestDraw?.drawId;
 
   const maxProbability = useMemo(() => {
     if (!data || data.numberProbabilities.length === 0) {
@@ -128,6 +157,21 @@ export default function HomePage() {
     void loadPrediction();
   }, [loadPrediction]);
 
+  useEffect(() => {
+    if (latestDrawId === undefined) {
+      return;
+    }
+
+    setManualDrawId(String(latestDrawId + 1));
+  }, [latestDrawId]);
+
+  useEffect(() => {
+    setManualState(null);
+    if (query.game === "power645") {
+      setManualBonus("");
+    }
+  }, [query.game]);
+
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void loadPrediction();
@@ -138,13 +182,20 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const token = window.prompt("Nếu bạn đã bật SYNC_TOKEN, nhập token ở đây (có thể để trống)");
+      let token = apiToken.trim();
+      if (!token) {
+        token = window.prompt("Nếu bạn đã bật SYNC_TOKEN, nhập token ở đây (có thể để trống)")?.trim() ?? "";
+        if (token) {
+          setApiToken(token);
+        }
+      }
+
       const search = new URLSearchParams({
         game: query.game,
         source: "local"
       });
-      if (token?.trim()) {
-        search.set("token", token.trim());
+      if (token) {
+        search.set("token", token);
       }
 
       const response = await fetch(`/api/sync?${search.toString()}`, {
@@ -163,6 +214,88 @@ export default function HomePage() {
       setError(syncError instanceof Error ? syncError.message : "Đồng bộ dữ liệu thất bại.");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const onSubmitManual = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setManualSubmitting(true);
+    setManualState(null);
+
+    try {
+      const drawId = Number(manualDrawId);
+      if (!Number.isInteger(drawId) || drawId <= 0) {
+        throw new Error("Draw ID phải là số nguyên dương.");
+      }
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(manualDrawDate)) {
+        throw new Error("Ngày quay phải theo định dạng YYYY-MM-DD.");
+      }
+
+      const numbers = parseManualNumbers(manualNumbers);
+      const numberMax = getGameNumberMax(query.game);
+      if (numbers.length !== 6) {
+        throw new Error("Dãy số phải có đúng 6 số.");
+      }
+      if (!numbers.every((value) => Number.isInteger(value) && value >= 1 && value <= numberMax)) {
+        throw new Error(`Các số phải nằm trong khoảng 1..${numberMax}.`);
+      }
+      if (new Set(numbers).size !== 6) {
+        throw new Error("Dãy số không được trùng.");
+      }
+
+      let bonus: number | null = null;
+      if (query.game === "power655" && manualBonus.trim()) {
+        const parsedBonus = Number(manualBonus);
+        if (!Number.isInteger(parsedBonus) || parsedBonus < 1 || parsedBonus > numberMax) {
+          throw new Error(`Số đặc biệt phải nằm trong khoảng 1..${numberMax}.`);
+        }
+        bonus = parsedBonus;
+      }
+
+      let token = apiToken.trim();
+      if (!token) {
+        token = window.prompt("Nhập token SYNC_TOKEN để ghi dữ liệu (nếu đã bật)")?.trim() ?? "";
+        if (token) {
+          setApiToken(token);
+        }
+      }
+
+      const search = token ? `?token=${encodeURIComponent(token)}` : "";
+      const response = await fetch(`/api/manual${search}`, {
+        method: "POST",
+        cache: "no-store",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          game: query.game,
+          drawId,
+          drawDate: manualDrawDate,
+          numbers,
+          bonus
+        })
+      });
+
+      const payload = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Không lưu được kỳ quay mới.");
+      }
+
+      setManualState({
+        ok: true,
+        text: `Đã lưu kỳ quay #${String(drawId).padStart(5, "0")} thành công.`
+      });
+      setManualNumbers("");
+      setManualBonus("");
+      await loadPrediction();
+    } catch (submitError) {
+      setManualState({
+        ok: false,
+        text: submitError instanceof Error ? submitError.message : "Không lưu được kỳ quay mới."
+      });
+    } finally {
+      setManualSubmitting(false);
     }
   };
 
@@ -271,6 +404,72 @@ export default function HomePage() {
         </form>
 
         {error && <p className={styles.error}>{error}</p>}
+      </section>
+
+      <section className={styles.manualCard}>
+        <h2>Nhập kỳ quay mới trực tiếp</h2>
+        <p className={styles.manualHint}>
+          Nhập kết quả từng ngày để cập nhật dữ liệu nội bộ mà không cần chạy sync remote.
+        </p>
+        <form className={styles.manualForm} onSubmit={onSubmitManual}>
+          <label>
+            Token API (SYNC_TOKEN)
+            <input
+              type="password"
+              value={apiToken}
+              onChange={(event) => setApiToken(event.target.value)}
+              placeholder="Nếu đã bật bảo mật token"
+            />
+          </label>
+
+          <label>
+            Draw ID
+            <input
+              type="number"
+              min={1}
+              value={manualDrawId}
+              onChange={(event) => setManualDrawId(event.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            Ngày quay (YYYY-MM-DD)
+            <input type="date" value={manualDrawDate} onChange={(event) => setManualDrawDate(event.target.value)} required />
+          </label>
+
+          <label>
+            Dãy 6 số
+            <input
+              type="text"
+              value={manualNumbers}
+              onChange={(event) => setManualNumbers(event.target.value)}
+              placeholder={query.game === "power655" ? "Ví dụ: 1,5,12,22,33,44" : "Ví dụ: 2,8,19,21,34,45"}
+              required
+            />
+          </label>
+
+          <label>
+            Số đặc biệt (chỉ 6/55)
+            <input
+              type="number"
+              min={1}
+              max={55}
+              value={manualBonus}
+              onChange={(event) => setManualBonus(event.target.value)}
+              placeholder={query.game === "power655" ? "Có thể để trống" : "Không dùng cho 6/45"}
+              disabled={query.game === "power645"}
+            />
+          </label>
+
+          <div className={styles.manualActions}>
+            <button type="submit" disabled={manualSubmitting}>
+              {manualSubmitting ? "Đang lưu..." : "Lưu kỳ quay mới"}
+            </button>
+          </div>
+        </form>
+
+        {manualState && <p className={manualState.ok ? styles.success : styles.error}>{manualState.text}</p>}
       </section>
 
       {data && (

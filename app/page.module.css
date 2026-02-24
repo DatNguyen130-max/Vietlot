@@ -6,6 +6,7 @@
 }
 
 .headerCard,
+.manualCard,
 .metrics article,
 .recommended,
 .combinationsCard,
@@ -114,6 +115,89 @@
   color: #8e1e1e;
   font-family: var(--font-mono), monospace;
   font-size: 0.82rem;
+}
+
+.success {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(20, 110, 55, 0.25);
+  background: rgba(235, 255, 245, 0.9);
+  color: #10693a;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.82rem;
+}
+
+.manualCard {
+  padding: 16px;
+}
+
+.manualCard h2 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.manualHint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.manualForm {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.manualForm label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.manualForm input {
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  padding: 0 10px;
+  background: rgba(255, 255, 255, 0.92);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9rem;
+}
+
+.manualForm input:focus {
+  outline: 2px solid rgba(25, 106, 69, 0.32);
+  outline-offset: 1px;
+}
+
+.manualForm input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.manualActions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 10px;
+}
+
+.manualActions button {
+  border: 0;
+  border-radius: 10px;
+  height: 40px;
+  padding: 0 14px;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  background: var(--accent);
+  color: #fff;
+}
+
+.manualActions button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 .metrics {
@@ -270,6 +354,10 @@
 
 @media (max-width: 640px) {
   .form {
+    grid-template-columns: 1fr;
+  }
+
+  .manualForm {
     grid-template-columns: 1fr;
   }
 
