@@ -14,7 +14,7 @@ Hỗ trợ song song:
 1. Tạo bảng trên Supabase bằng `supabase/schema.sql`.
 2. Cấu hình env theo `.env.example`.
 3. Push code lên GitHub rồi import repo vào Vercel.
-4. Sau deploy, gọi `/api/sync?game=all` để nạp dữ liệu cả 2 game.
+4. Sau deploy, gọi `/api/sync?game=all&source=local` để nạp dữ liệu full snapshot cả 2 game.
 
 ## 1) Chuẩn bị Supabase
 
@@ -37,6 +37,7 @@ SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 SYNC_TOKEN=change-me
 CRON_SECRET=change-me
 
+# Optional: use remote sync source instead of local snapshot files
 SYNC_SOURCE_URL_655=https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power655.jsonl
 SYNC_SOURCE_URL_645=https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power645.jsonl
 ```
@@ -58,14 +59,30 @@ UI:
 API:
 
 ```bash
-# Sync cả 2 game
-curl -X POST "http://localhost:3000/api/sync?game=all&token=change-me"
+# Sync cả 2 game từ file local trong repo (mặc định)
+curl -X POST "http://localhost:3000/api/sync?game=all&source=local&token=change-me"
 
-# Sync riêng 6/55
-curl -X POST "http://localhost:3000/api/sync?game=power655&token=change-me"
+# Sync riêng 6/55 từ local snapshot
+curl -X POST "http://localhost:3000/api/sync?game=power655&source=local&token=change-me"
 
-# Sync riêng 6/45
-curl -X POST "http://localhost:3000/api/sync?game=power645&token=change-me"
+# Sync từ GitHub (remote) nếu muốn
+curl -X POST "http://localhost:3000/api/sync?game=all&source=remote&token=change-me"
+```
+
+### Cập nhật thủ công từng kỳ quay
+
+Bạn có thể thêm kỳ quay mới mà không cần sync remote:
+
+```bash
+# Power 6/55 (có bonus)
+curl -X POST "http://localhost:3000/api/manual?token=change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"game":"power655","drawId":1311,"drawDate":"2026-02-24","numbers":[1,5,12,22,33,44],"bonus":9}'
+
+# Mega 6/45 (không bonus)
+curl -X POST "http://localhost:3000/api/manual?token=change-me" \
+  -H "Content-Type: application/json" \
+  -d '{"game":"power645","drawId":1476,"drawDate":"2026-02-24","numbers":[2,8,19,21,34,45],"bonus":null}'
 ```
 
 ## 5) Deploy GitHub + Vercel
@@ -83,9 +100,10 @@ curl -X POST "http://localhost:3000/api/sync?game=power645&token=change-me"
 
 ## 6) Cron tự động cập nhật dữ liệu
 
-File `vercel.json` đã cấu hình cron gọi `/api/sync` mỗi ngày lúc `01:00 UTC`.
+File `vercel.json` đã cấu hình cron gọi `/api/sync?game=all&source=local` mỗi ngày lúc `01:00 UTC`.
 
 - Nếu không truyền `game`, API sẽ sync mặc định cả `power655` và `power645`.
+- Nếu không truyền `source`, API mặc định dùng `source=local` (file snapshot trong repo).
 - Khuyến nghị đặt `CRON_SECRET` để Vercel Cron tự gửi `Authorization: Bearer <CRON_SECRET>`.
 
 ## API chính
@@ -94,9 +112,9 @@ File `vercel.json` đã cấu hình cron gọi `/api/sync` mỗi ngày lúc `01:
 GET /api/predict?game=power655&lookback=420&simulations=40000&top=12&recentWindow=60
 GET /api/predict?game=power645&lookback=420&simulations=40000&top=12&recentWindow=60
 
-GET|POST /api/sync?game=all&token=...
-GET|POST /api/sync?game=power655&token=...
-GET|POST /api/sync?game=power645&token=...
+GET|POST /api/sync?game=all&source=local&token=...
+GET|POST /api/sync?game=all&source=remote&token=...
+POST /api/manual?token=...
 ```
 
 ## Ghi chú

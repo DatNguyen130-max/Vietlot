@@ -6,6 +6,7 @@ export interface GameConfig {
   maxNumber: number;
   hasBonus: boolean;
   tableName: string;
+  localSnapshotPath: string;
   defaultSourceUrl: string;
   sourceEnvVar: string;
 }
@@ -17,6 +18,7 @@ const GAME_CONFIGS: Record<GameType, GameConfig> = {
     maxNumber: 55,
     hasBonus: true,
     tableName: "power655_results",
+    localSnapshotPath: "data/power655.jsonl",
     defaultSourceUrl: "https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power655.jsonl",
     sourceEnvVar: "SYNC_SOURCE_URL_655"
   },
@@ -26,6 +28,7 @@ const GAME_CONFIGS: Record<GameType, GameConfig> = {
     maxNumber: 45,
     hasBonus: false,
     tableName: "power645_results",
+    localSnapshotPath: "data/power645.jsonl",
     defaultSourceUrl: "https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power645.jsonl",
     sourceEnvVar: "SYNC_SOURCE_URL_645"
   }

@@ -22,6 +22,13 @@ export interface HistoricalDraw {
   bonus: number | null;
 }
 
+export interface ManualDrawInput {
+  drawId: number;
+  drawDate: string;
+  numbers: number[];
+  bonus: number | null;
+}
+
 interface SourceRow {
   date?: unknown;
   id?: unknown;
@@ -124,6 +131,57 @@ export function parsePowerDrawJsonl(game: GameType, jsonlText: string): PowerDra
   }
 
   return [...dedupe.values()].sort((a, b) => a.draw_id - b.draw_id);
+}
+
+export function makeManualPowerRow(game: GameType, input: ManualDrawInput): PowerDrawRow {
+  const { maxNumber, hasBonus } = getGameConfig(game);
+  const drawId = Math.floor(input.drawId);
+  if (!Number.isInteger(drawId) || drawId <= 0) {
+    throw new Error("drawId must be a positive integer.");
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.drawDate)) {
+    throw new Error("drawDate must be in YYYY-MM-DD format.");
+  }
+
+  if (!Array.isArray(input.numbers) || input.numbers.length !== MAIN_NUMBER_COUNT) {
+    throw new Error("numbers must contain exactly 6 values.");
+  }
+
+  const normalizedNumbers = input.numbers.map((value) => Math.floor(Number(value))).sort((a, b) => a - b);
+  for (const value of normalizedNumbers) {
+    if (!isInRange(value, maxNumber)) {
+      throw new Error(`numbers must be within 1..${maxNumber}.`);
+    }
+  }
+
+  if (new Set(normalizedNumbers).size !== MAIN_NUMBER_COUNT) {
+    throw new Error("numbers must not contain duplicates.");
+  }
+
+  let bonus: number | null = null;
+  if (hasBonus) {
+    if (input.bonus === null || input.bonus === undefined) {
+      bonus = null;
+    } else {
+      const parsedBonus = Math.floor(Number(input.bonus));
+      if (!isInRange(parsedBonus, maxNumber)) {
+        throw new Error(`bonus must be within 1..${maxNumber}.`);
+      }
+      bonus = parsedBonus;
+    }
+  }
+
+  const raw_result = bonus === null ? [...normalizedNumbers] : [...normalizedNumbers, bonus];
+  return {
+    draw_id: drawId,
+    draw_code: String(drawId).padStart(5, "0"),
+    draw_date: input.drawDate,
+    numbers: normalizedNumbers,
+    bonus,
+    raw_result,
+    source_updated_at: new Date().toISOString()
+  };
 }
 
 export async function upsertPowerRows(game: GameType, rows: PowerDrawRow[]): Promise<number> {

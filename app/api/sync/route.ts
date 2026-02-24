@@ -1,40 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFile } from "node:fs/promises";
 
+import { validateApiToken } from "@/lib/auth";
 import { getAllGames, getGameConfig, parseGameType, resolveSourceUrl, type GameType } from "@/lib/games";
 import { parsePowerDrawJsonl, upsertPowerRows } from "@/lib/vietlott";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function readToken(request: NextRequest): string | null {
-  const bearer = request.headers.get("authorization");
-  if (bearer?.startsWith("Bearer ")) {
-    return bearer.slice("Bearer ".length).trim();
-  }
-
-  return (
-    request.headers.get("x-sync-token") ??
-    request.nextUrl.searchParams.get("token") ??
-    request.nextUrl.searchParams.get("syncToken")
-  );
-}
-
-function authorize(request: NextRequest): string | null {
-  const expectedTokens = [process.env.SYNC_TOKEN, process.env.CRON_SECRET].filter(
-    (value): value is string => Boolean(value && value.trim())
-  );
-
-  if (expectedTokens.length === 0) {
-    return null;
-  }
-
-  const incoming = readToken(request);
-  if (!incoming || !expectedTokens.includes(incoming)) {
-    return "Unauthorized";
-  }
-
-  return null;
-}
 
 function parseTargetGames(value: string | null): GameType[] {
   if (!value || value.toLowerCase() === "all") {
@@ -49,13 +21,69 @@ function parseTargetGames(value: string | null): GameType[] {
   return [parsed];
 }
 
+type SyncSourceType = "local" | "remote";
+
+const LOCAL_SNAPSHOT_URLS: Record<GameType, URL> = {
+  power655: new URL("../../../data/power655.jsonl", import.meta.url),
+  power645: new URL("../../../data/power645.jsonl", import.meta.url)
+};
+
+function parseSyncSource(sourceValue: string | null): SyncSourceType {
+  if (!sourceValue) {
+    return "local";
+  }
+
+  const normalized = sourceValue.trim().toLowerCase();
+  if (normalized === "local" || normalized === "file" || normalized === "snapshot") {
+    return "local";
+  }
+
+  if (normalized === "remote" || normalized === "github") {
+    return "remote";
+  }
+
+  throw new Error("Invalid source. Use source=local or source=remote.");
+}
+
+async function loadLocalSnapshot(game: GameType): Promise<{ sourceLabel: string; body: string }> {
+  const config = getGameConfig(game);
+  const body = await readFile(LOCAL_SNAPSHOT_URLS[game], "utf8");
+
+  return {
+    sourceLabel: `local://${config.localSnapshotPath}`,
+    body
+  };
+}
+
+async function loadRemoteSnapshot(game: GameType): Promise<{ sourceLabel: string; body: string }> {
+  const sourceUrl = resolveSourceUrl(game);
+
+  const sourceResponse = await fetch(sourceUrl, {
+    method: "GET",
+    cache: "no-store",
+    headers: {
+      "User-Agent": "vietlot-internal-dashboard"
+    }
+  });
+
+  if (!sourceResponse.ok) {
+    throw new Error(`Unable to fetch ${getGameConfig(game).label} source data (${sourceResponse.status})`);
+  }
+
+  return {
+    sourceLabel: sourceUrl,
+    body: await sourceResponse.text()
+  };
+}
+
 async function performSync(request: NextRequest): Promise<NextResponse> {
-  const authError = authorize(request);
+  const authError = validateApiToken(request);
   if (authError) {
     return NextResponse.json({ error: authError }, { status: 401 });
   }
 
   const games = parseTargetGames(request.nextUrl.searchParams.get("game"));
+  const sourceType = parseSyncSource(request.nextUrl.searchParams.get("source"));
   const results: Array<{
     game: GameType;
     gameLabel: string;
@@ -72,21 +100,8 @@ async function performSync(request: NextRequest): Promise<NextResponse> {
 
   for (const game of games) {
     const gameConfig = getGameConfig(game);
-    const sourceUrl = resolveSourceUrl(game);
-
-    const sourceResponse = await fetch(sourceUrl, {
-      method: "GET",
-      cache: "no-store",
-      headers: {
-        "User-Agent": "vietlot-internal-dashboard"
-      }
-    });
-
-    if (!sourceResponse.ok) {
-      throw new Error(`Unable to fetch ${gameConfig.label} source data (${sourceResponse.status})`);
-    }
-
-    const body = await sourceResponse.text();
+    const sourceResult = sourceType === "local" ? await loadLocalSnapshot(game) : await loadRemoteSnapshot(game);
+    const body = sourceResult.body;
     const rows = parsePowerDrawJsonl(game, body);
     const written = await upsertPowerRows(game, rows);
 
@@ -94,7 +109,7 @@ async function performSync(request: NextRequest): Promise<NextResponse> {
     results.push({
       game,
       gameLabel: gameConfig.label,
-      sourceUrl,
+      sourceUrl: sourceResult.sourceLabel,
       parsedRows: rows.length,
       writtenRows: written,
       latestDraw: latest
@@ -110,6 +125,7 @@ async function performSync(request: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     ok: true,
+    source: sourceType,
     syncedGames: results.length,
     results,
     syncedAt: new Date().toISOString()
@@ -121,7 +137,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return await performSync(request);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
-    const status = message.startsWith("Invalid game.") ? 400 : 500;
+    const status = message.startsWith("Invalid game.") || message.startsWith("Invalid source.") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }
@@ -131,7 +147,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return await performSync(request);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
-    const status = message.startsWith("Invalid game.") ? 400 : 500;
+    const status = message.startsWith("Invalid game.") || message.startsWith("Invalid source.") ? 400 : 500;
     return NextResponse.json({ error: message }, { status });
   }
 }

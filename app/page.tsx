@@ -140,7 +140,8 @@ export default function HomePage() {
     try {
       const token = window.prompt("Nếu bạn đã bật SYNC_TOKEN, nhập token ở đây (có thể để trống)");
       const search = new URLSearchParams({
-        game: query.game
+        game: query.game,
+        source: "local"
       });
       if (token?.trim()) {
         search.set("token", token.trim());

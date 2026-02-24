@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/sync?game=all",
+      "path": "/api/sync?game=all&source=local",
       "schedule": "0 1 * * *"
     }
   ]
