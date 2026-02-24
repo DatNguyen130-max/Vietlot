@@ -26,6 +26,36 @@ interface BootstrapResult {
   source?: string;
   parsedRows?: number;
   writtenRows?: number;
+  fallbackMode?: "database" | "local_snapshot";
+  warning?: string;
+}
+
+function mapRowsToHistorical(rows: ReturnType<typeof parsePowerDrawJsonl>): HistoricalDraw[] {
+  return rows.map((row) => ({
+    drawId: row.draw_id,
+    drawDate: row.draw_date,
+    numbers: [...row.numbers].sort((a, b) => a - b),
+    bonus: row.bonus
+  }));
+}
+
+interface FetchResult {
+  rows: HistoricalDraw[];
+  error?: string;
+}
+
+async function safeFetchHistorical(game: ReturnType<typeof parseGameType>, limit: number): Promise<FetchResult> {
+  if (!game) {
+    return { rows: [] };
+  }
+
+  try {
+    const rows = await fetchHistoricalDraws(game, limit);
+    return { rows };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { rows: [], error: message };
+  }
 }
 
 async function loadHistoricalWithBootstrap(game: ReturnType<typeof parseGameType>, limit: number): Promise<{
@@ -36,23 +66,68 @@ async function loadHistoricalWithBootstrap(game: ReturnType<typeof parseGameType
     return { historical: [], bootstrap: { used: false } };
   }
 
-  const historical = await fetchHistoricalDraws(game, limit);
+  const initialFetch = await safeFetchHistorical(game, limit);
+  const historical = initialFetch.rows;
   if (historical.length >= 30) {
-    return { historical, bootstrap: { used: false } };
+    return {
+      historical,
+      bootstrap: {
+        used: false,
+        fallbackMode: "database",
+        warning: initialFetch.error
+      }
+    };
   }
 
   const localSnapshot = await loadLocalSnapshot(game);
   const rows = parsePowerDrawJsonl(game, localSnapshot.body);
-  const writtenRows = await upsertPowerRows(game, rows);
-  const reloaded = await fetchHistoricalDraws(game, limit);
+  const warnings: string[] = [];
+  if (initialFetch.error) {
+    warnings.push(`Initial Supabase read failed: ${initialFetch.error}`);
+  }
+
+  let writtenRows = 0;
+  try {
+    writtenRows = await upsertPowerRows(game, rows);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    warnings.push(`Supabase upsert failed: ${message}`);
+  }
+
+  const reloadedFetch = await safeFetchHistorical(game, limit);
+  const reloaded = reloadedFetch.rows;
+  if (reloadedFetch.error) {
+    warnings.push(`Supabase read after bootstrap failed: ${reloadedFetch.error}`);
+  }
+
+  if (reloaded.length >= 30) {
+    return {
+      historical: reloaded,
+      bootstrap: {
+        used: true,
+        source: localSnapshot.sourceLabel,
+        parsedRows: rows.length,
+        writtenRows,
+        fallbackMode: "database",
+        warning: warnings.length ? warnings.join(" | ") : undefined
+      }
+    };
+  }
+
+  // If DB still returns empty/too few rows after upsert, fallback to local snapshot for prediction.
+  const snapshotHistorical = mapRowsToHistorical(rows).slice(-Math.max(limit, 50));
 
   return {
-    historical: reloaded,
+    historical: snapshotHistorical,
     bootstrap: {
       used: true,
       source: localSnapshot.sourceLabel,
       parsedRows: rows.length,
-      writtenRows
+      writtenRows,
+      fallbackMode: "local_snapshot",
+      warning: warnings.length
+        ? `Using local snapshot because Supabase returned too few rows after bootstrap. ${warnings.join(" | ")}`
+        : "Using local snapshot because Supabase returned too few rows after bootstrap."
     }
   };
 }
