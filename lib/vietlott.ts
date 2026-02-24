@@ -145,7 +145,10 @@ export async function upsertPowerRows(game: GameType, rows: PowerDrawRow[]): Pro
     });
 
     if (error) {
-      throw new Error(`Failed to upsert rows to Supabase: ${error.message}`);
+      const hint = /fetch failed/i.test(error.message)
+        ? " Check SUPABASE_URL and use service_role key in SUPABASE_SERVICE_ROLE_KEY."
+        : "";
+      throw new Error(`Failed to upsert rows to Supabase: ${error.message}.${hint}`);
     }
 
     processedCount += count ?? batch.length;
@@ -166,7 +169,10 @@ export async function fetchHistoricalDraws(game: GameType, limit: number): Promi
     .limit(safeLimit);
 
   if (error) {
-    throw new Error(`Failed to load historical data: ${error.message}`);
+    const hint = /fetch failed/i.test(error.message)
+      ? " Check SUPABASE_URL and use service_role key in SUPABASE_SERVICE_ROLE_KEY."
+      : "";
+    throw new Error(`Failed to load historical data: ${error.message}.${hint}`);
   }
 
   return (data ?? [])

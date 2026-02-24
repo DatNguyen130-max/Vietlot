@@ -104,3 +104,4 @@ GET|POST /api/sync?game=power645&token=...
 - Mô hình dùng thống kê lịch sử + Monte Carlo để tham khảo nội bộ.
 - Không có mô hình nào đảm bảo dự đoán đúng kết quả quay số.
 - Một số bản ghi nguồn có thể không có số đặc biệt; hệ thống vẫn đồng bộ bình thường.
+- `SUPABASE_SERVICE_ROLE_KEY` bắt buộc là service role key (không dùng `sb_publishable...` hoặc JWT `role=anon`).
