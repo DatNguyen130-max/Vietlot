@@ -1,4 +1,6 @@
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import { getGameConfig, resolveSourceUrl, type GameType } from "@/lib/games";
 
@@ -14,7 +16,9 @@ export interface SnapshotPayload {
 
 export async function loadLocalSnapshot(game: GameType): Promise<SnapshotPayload> {
   const config = getGameConfig(game);
-  const body = await readFile(LOCAL_SNAPSHOT_URLS[game], "utf8");
+  const fsPath = fileURLToPath(LOCAL_SNAPSHOT_URLS[game]);
+  const absolutePath = path.resolve(fsPath);
+  const body = await readFile(absolutePath, "utf8");
 
   return {
     sourceLabel: `local://${config.localSnapshotPath}`,
