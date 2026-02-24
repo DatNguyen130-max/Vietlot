@@ -14,11 +14,34 @@ export interface SnapshotPayload {
   body: string;
 }
 
+async function readSnapshotText(game: GameType): Promise<string> {
+  const config = getGameConfig(game);
+  const url = LOCAL_SNAPSHOT_URLS[game];
+  const candidates = [
+    fileURLToPath(url),
+    decodeURIComponent(url.pathname),
+    path.join(process.cwd(), config.localSnapshotPath)
+  ];
+
+  let lastError: Error | null = null;
+
+  for (const candidate of candidates) {
+    try {
+      const absolutePath = path.resolve(candidate);
+      return await readFile(absolutePath, "utf8");
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  throw new Error(
+    `Unable to read local snapshot file for ${config.label}. Last error: ${lastError?.message ?? "unknown"}`
+  );
+}
+
 export async function loadLocalSnapshot(game: GameType): Promise<SnapshotPayload> {
   const config = getGameConfig(game);
-  const fsPath = fileURLToPath(LOCAL_SNAPSHOT_URLS[game]);
-  const absolutePath = path.resolve(fsPath);
-  const body = await readFile(absolutePath, "utf8");
+  const body = await readSnapshotText(game);
 
   return {
     sourceLabel: `local://${config.localSnapshotPath}`,
