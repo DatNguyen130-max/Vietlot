@@ -56,6 +56,10 @@ Mở `http://localhost:3000`.
 UI:
 - Chọn game (`Power 6/55` hoặc `Mega 6/45`) rồi bấm **Sync dữ liệu game đang chọn**.
 
+Lưu ý:
+- API `GET /api/predict` sẽ tự bootstrap dữ liệu local snapshot nếu database đang trống.
+- Bạn vẫn có thể chạy sync thủ công để chủ động kiểm soát nguồn dữ liệu.
+
 API:
 
 ```bash

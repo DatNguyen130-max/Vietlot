@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "node:fs/promises";
 
 import { validateApiToken } from "@/lib/auth";
-import { getAllGames, getGameConfig, parseGameType, resolveSourceUrl, type GameType } from "@/lib/games";
+import { getAllGames, getGameConfig, parseGameType, type GameType } from "@/lib/games";
+import { loadLocalSnapshot, loadRemoteSnapshot } from "@/lib/snapshot";
 import { parsePowerDrawJsonl, upsertPowerRows } from "@/lib/vietlott";
 
 export const runtime = "nodejs";
@@ -23,11 +23,6 @@ function parseTargetGames(value: string | null): GameType[] {
 
 type SyncSourceType = "local" | "remote";
 
-const LOCAL_SNAPSHOT_URLS: Record<GameType, URL> = {
-  power655: new URL("../../../data/power655.jsonl", import.meta.url),
-  power645: new URL("../../../data/power645.jsonl", import.meta.url)
-};
-
 function parseSyncSource(sourceValue: string | null): SyncSourceType {
   if (!sourceValue) {
     return "local";
@@ -43,37 +38,6 @@ function parseSyncSource(sourceValue: string | null): SyncSourceType {
   }
 
   throw new Error("Invalid source. Use source=local or source=remote.");
-}
-
-async function loadLocalSnapshot(game: GameType): Promise<{ sourceLabel: string; body: string }> {
-  const config = getGameConfig(game);
-  const body = await readFile(LOCAL_SNAPSHOT_URLS[game], "utf8");
-
-  return {
-    sourceLabel: `local://${config.localSnapshotPath}`,
-    body
-  };
-}
-
-async function loadRemoteSnapshot(game: GameType): Promise<{ sourceLabel: string; body: string }> {
-  const sourceUrl = resolveSourceUrl(game);
-
-  const sourceResponse = await fetch(sourceUrl, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      "User-Agent": "vietlot-internal-dashboard"
-    }
-  });
-
-  if (!sourceResponse.ok) {
-    throw new Error(`Unable to fetch ${getGameConfig(game).label} source data (${sourceResponse.status})`);
-  }
-
-  return {
-    sourceLabel: sourceUrl,
-    body: await sourceResponse.text()
-  };
 }
 
 async function performSync(request: NextRequest): Promise<NextResponse> {
