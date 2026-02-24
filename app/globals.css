@@ -1,0 +1,37 @@
+:root {
+  --bg-1: #f6f7f4;
+  --bg-2: #e8efe6;
+  --ink: #0f1b14;
+  --muted: #4f5f53;
+  --card: rgba(255, 255, 255, 0.86);
+  --stroke: rgba(15, 27, 20, 0.12);
+  --accent: #196a45;
+  --accent-soft: #88d7b1;
+  --font-heading: "Avenir Next", "Gill Sans Nova", "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "Menlo", "Monaco", "Consolas", "Courier New", monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: var(--font-heading), sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 18%, rgba(19, 98, 66, 0.22), transparent 38%),
+    radial-gradient(circle at 88% 8%, rgba(130, 203, 164, 0.4), transparent 36%),
+    linear-gradient(170deg, var(--bg-1), var(--bg-2));
+  padding: 28px 14px 40px;
+}
+
+a {
+  color: inherit;
+}
