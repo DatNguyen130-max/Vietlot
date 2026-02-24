@@ -73,9 +73,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const { historical, bootstrap } = await loadHistoricalWithBootstrap(game, Math.max(lookback, 300));
 
     if (historical.length < 30) {
+      const bootstrapHint = bootstrap.used
+        ? `Bootstrap attempted from ${bootstrap.source ?? "local snapshot"} (parsed=${bootstrap.parsedRows ?? 0}, written=${bootstrap.writtenRows ?? 0}).`
+        : "Bootstrap was not triggered.";
+
       return NextResponse.json(
         {
-          error: `Not enough ${gameConfig.label} historical data in Supabase (current: ${historical.length}). Run /api/sync?source=local to initialize data.`
+          error: `Not enough ${gameConfig.label} historical data in Supabase (current: ${historical.length}). Run /api/sync?source=local to initialize data. ${bootstrapHint}`,
+          bootstrap
         },
         { status: 400 }
       );
