@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { validateApiToken } from "@/lib/auth";
 import { getAllGames, getGameConfig, parseGameType, type GameType } from "@/lib/games";
-import { loadLocalSnapshot, loadRemoteSnapshot } from "@/lib/snapshot";
+import { loadLocalSnapshot } from "@/lib/snapshot";
 import { parsePowerDrawJsonl, upsertPowerRows } from "@/lib/vietlott";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ function parseTargetGames(value: string | null): GameType[] {
   return [parsed];
 }
 
-type SyncSourceType = "local" | "remote";
+type SyncSourceType = "local";
 
 function parseSyncSource(sourceValue: string | null): SyncSourceType {
   if (!sourceValue) {
@@ -32,12 +32,7 @@ function parseSyncSource(sourceValue: string | null): SyncSourceType {
   if (normalized === "local" || normalized === "file" || normalized === "snapshot") {
     return "local";
   }
-
-  if (normalized === "remote" || normalized === "github") {
-    return "remote";
-  }
-
-  throw new Error("Invalid source. Use source=local or source=remote.");
+  throw new Error("Invalid source. Only source=local is supported.");
 }
 
 async function performSync(request: NextRequest): Promise<NextResponse> {
@@ -64,7 +59,7 @@ async function performSync(request: NextRequest): Promise<NextResponse> {
 
   for (const game of games) {
     const gameConfig = getGameConfig(game);
-    const sourceResult = sourceType === "local" ? await loadLocalSnapshot(game) : await loadRemoteSnapshot(game);
+    const sourceResult = await loadLocalSnapshot(game);
     const body = sourceResult.body;
     const rows = parsePowerDrawJsonl(game, body);
     const written = await upsertPowerRows(game, rows);

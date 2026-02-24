@@ -23,6 +23,10 @@ pnpm-debug.log*
 .env*.local
 .env
 
+# optional local raw snapshot copies (root-level)
+/power655.jsonl
+/power645.jsonl
+
 # cloned reference repo (local only)
 /source_repo
 

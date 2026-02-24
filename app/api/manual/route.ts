@@ -13,6 +13,7 @@ interface ManualPayload {
   drawDate?: unknown;
   numbers?: unknown;
   bonus?: unknown;
+  jackpot2Value?: unknown;
 }
 
 function toInt(value: unknown): number {
@@ -33,6 +34,24 @@ function toBonus(value: unknown): number | null {
     throw new Error("bonus must be a number or null.");
   }
   return Math.floor(parsed);
+}
+
+function toJackpot2Value(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    throw new Error("jackpot2Value must be a non-negative integer or null.");
+  }
+
+  const asInt = Math.floor(parsed);
+  if (asInt < 0) {
+    throw new Error("jackpot2Value must be a non-negative integer or null.");
+  }
+
+  return asInt;
 }
 
 function toNumbers(value: unknown): number[] {
@@ -70,7 +89,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       drawId: toInt(body.drawId),
       drawDate: body.drawDate,
       numbers: toNumbers(body.numbers),
-      bonus: toBonus(body.bonus)
+      bonus: toBonus(body.bonus),
+      jackpot2Value: toJackpot2Value(body.jackpot2Value)
     });
 
     await upsertPowerRows(game, [row]);
@@ -83,7 +103,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         drawId: row.draw_id,
         drawDate: row.draw_date,
         numbers: row.numbers,
-        bonus: row.bonus
+        bonus: row.bonus,
+        jackpot2Value: row.jackpot2_value ?? null
       },
       updatedAt: new Date().toISOString()
     });

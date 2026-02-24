@@ -14,13 +14,15 @@ create table if not exists public.power655_results (
   draw_date date not null unique,
   numbers integer[] not null,
   bonus integer,
+  jackpot2_value bigint,
   raw_result integer[] not null,
   source_updated_at timestamptz,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint power655_numbers_len check (cardinality(numbers) = 6),
   constraint power655_raw_len check (cardinality(raw_result) between 6 and 7),
-  constraint power655_bonus_range check (bonus is null or bonus between 1 and 55)
+  constraint power655_bonus_range check (bonus is null or bonus between 1 and 55),
+  constraint power655_jackpot2_value_non_negative check (jackpot2_value is null or jackpot2_value >= 0)
 );
 
 create index if not exists idx_power655_draw_date_desc on public.power655_results (draw_date desc);
@@ -36,6 +38,9 @@ create policy power655_service_role_only on public.power655_results
 for all
 using (auth.role() = 'service_role')
 with check (auth.role() = 'service_role');
+
+alter table if exists public.power655_results
+  add column if not exists jackpot2_value bigint;
 
 create table if not exists public.power645_results (
   draw_id integer primary key,

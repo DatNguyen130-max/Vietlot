@@ -7,8 +7,6 @@ export interface GameConfig {
   hasBonus: boolean;
   tableName: string;
   localSnapshotPath: string;
-  defaultSourceUrl: string;
-  sourceEnvVar: string;
 }
 
 const GAME_CONFIGS: Record<GameType, GameConfig> = {
@@ -18,9 +16,7 @@ const GAME_CONFIGS: Record<GameType, GameConfig> = {
     maxNumber: 55,
     hasBonus: true,
     tableName: "power655_results",
-    localSnapshotPath: "data/power655.jsonl",
-    defaultSourceUrl: "https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power655.jsonl",
-    sourceEnvVar: "SYNC_SOURCE_URL_655"
+    localSnapshotPath: "data/power655.jsonl"
   },
   power645: {
     game: "power645",
@@ -28,9 +24,7 @@ const GAME_CONFIGS: Record<GameType, GameConfig> = {
     maxNumber: 45,
     hasBonus: false,
     tableName: "power645_results",
-    localSnapshotPath: "data/power645.jsonl",
-    defaultSourceUrl: "https://raw.githubusercontent.com/vietvudanh/vietlott-data/main/data/power645.jsonl",
-    sourceEnvVar: "SYNC_SOURCE_URL_645"
+    localSnapshotPath: "data/power645.jsonl"
   }
 };
 
@@ -65,22 +59,4 @@ export function getGameConfig(game: GameType): GameConfig {
 
 export function getAllGames(): GameType[] {
   return ["power655", "power645"];
-}
-
-export function resolveSourceUrl(game: GameType): string {
-  const config = getGameConfig(game);
-  const direct = process.env[config.sourceEnvVar];
-  if (direct && direct.trim()) {
-    return direct.trim();
-  }
-
-  // Backward compatibility with previous single-game env var.
-  if (game === "power655") {
-    const legacy = process.env.SYNC_SOURCE_URL;
-    if (legacy && legacy.trim()) {
-      return legacy.trim();
-    }
-  }
-
-  return config.defaultSourceUrl;
 }

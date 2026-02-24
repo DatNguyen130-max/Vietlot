@@ -11,6 +11,7 @@ export interface PowerDrawRow {
   draw_date: string;
   numbers: number[];
   bonus: number | null;
+  jackpot2_value?: number | null;
   raw_result: number[];
   source_updated_at: string | null;
 }
@@ -27,6 +28,7 @@ export interface ManualDrawInput {
   drawDate: string;
   numbers: number[];
   bonus: number | null;
+  jackpot2Value: number | null;
 }
 
 interface SourceRow {
@@ -75,7 +77,7 @@ function parseResult(result: unknown, maxNumber: number, minResultCount: number,
 }
 
 export function parsePowerDrawJsonl(game: GameType, jsonlText: string): PowerDrawRow[] {
-  const { maxNumber, hasBonus } = getGameConfig(game);
+  const { maxNumber, hasBonus, game: gameType } = getGameConfig(game);
   const minResultCount = MAIN_NUMBER_COUNT;
   const maxResultCount = hasBonus ? 7 : 6;
   const lines = jsonlText
@@ -119,7 +121,7 @@ export function parsePowerDrawJsonl(game: GameType, jsonlText: string): PowerDra
       bonus = parsedBonus;
     }
 
-    dedupe.set(drawId, {
+    const row: PowerDrawRow = {
       draw_id: drawId,
       draw_code: payload.id,
       draw_date: payload.date,
@@ -127,14 +129,20 @@ export function parsePowerDrawJsonl(game: GameType, jsonlText: string): PowerDra
       bonus,
       raw_result: rawResult,
       source_updated_at: normalizeProcessTime(payload.process_time)
-    });
+    };
+
+    if (gameType === "power655") {
+      row.jackpot2_value = null;
+    }
+
+    dedupe.set(drawId, row);
   }
 
   return [...dedupe.values()].sort((a, b) => a.draw_id - b.draw_id);
 }
 
 export function makeManualPowerRow(game: GameType, input: ManualDrawInput): PowerDrawRow {
-  const { maxNumber, hasBonus } = getGameConfig(game);
+  const { maxNumber, hasBonus, game: gameType } = getGameConfig(game);
   const drawId = Math.floor(input.drawId);
   if (!Number.isInteger(drawId) || drawId <= 0) {
     throw new Error("drawId must be a positive integer.");
@@ -160,6 +168,7 @@ export function makeManualPowerRow(game: GameType, input: ManualDrawInput): Powe
   }
 
   let bonus: number | null = null;
+  let jackpot2Value: number | null = null;
   if (hasBonus) {
     if (input.bonus === null || input.bonus === undefined) {
       bonus = null;
@@ -170,10 +179,18 @@ export function makeManualPowerRow(game: GameType, input: ManualDrawInput): Powe
       }
       bonus = parsedBonus;
     }
+
+    if (input.jackpot2Value !== null && input.jackpot2Value !== undefined) {
+      const parsedAmount = Math.floor(Number(input.jackpot2Value));
+      if (!Number.isFinite(parsedAmount) || parsedAmount < 0) {
+        throw new Error("jackpot2Value must be a non-negative integer.");
+      }
+      jackpot2Value = parsedAmount;
+    }
   }
 
   const raw_result = bonus === null ? [...normalizedNumbers] : [...normalizedNumbers, bonus];
-  return {
+  const row: PowerDrawRow = {
     draw_id: drawId,
     draw_code: String(drawId).padStart(5, "0"),
     draw_date: input.drawDate,
@@ -182,6 +199,12 @@ export function makeManualPowerRow(game: GameType, input: ManualDrawInput): Powe
     raw_result,
     source_updated_at: new Date().toISOString()
   };
+
+  if (gameType === "power655") {
+    row.jackpot2_value = jackpot2Value;
+  }
+
+  return row;
 }
 
 export async function upsertPowerRows(game: GameType, rows: PowerDrawRow[]): Promise<number> {
@@ -195,12 +218,22 @@ export async function upsertPowerRows(game: GameType, rows: PowerDrawRow[]): Pro
 
   for (let index = 0; index < rows.length; index += UPSERT_BATCH_SIZE) {
     const batch = rows.slice(index, index + UPSERT_BATCH_SIZE);
+    const runUpsert = async (payload: object[]) =>
+      supabase.from(tableName).upsert(payload, {
+        onConflict: "draw_id",
+        ignoreDuplicates: false,
+        count: "exact"
+      });
 
-    const { error, count } = await supabase.from(tableName).upsert(batch, {
-      onConflict: "draw_id",
-      ignoreDuplicates: false,
-      count: "exact"
-    });
+    let { error, count } = await runUpsert(batch);
+
+    // Backward compatible with old schema that does not yet have jackpot2_value column.
+    if (error && /jackpot2_value/i.test(error.message)) {
+      const fallbackPayload = batch.map(({ jackpot2_value: _ignored, ...rest }) => rest);
+      const retry = await runUpsert(fallbackPayload);
+      error = retry.error;
+      count = retry.count;
+    }
 
     if (error) {
       const hint = /fetch failed/i.test(error.message)

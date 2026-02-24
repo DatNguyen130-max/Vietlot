@@ -1,12 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import { getGameConfig, resolveSourceUrl, type GameType } from "@/lib/games";
+import { getGameConfig, type GameType } from "@/lib/games";
 
-const LOCAL_SNAPSHOT_URLS: Record<GameType, URL> = {
-  power655: new URL("../data/power655.jsonl", import.meta.url),
-  power645: new URL("../data/power645.jsonl", import.meta.url)
+const LOCAL_SNAPSHOT_CANDIDATES: Record<GameType, string[]> = {
+  power655: [path.join(process.cwd(), "power655.jsonl"), path.join(process.cwd(), "data", "power655.jsonl")],
+  power645: [path.join(process.cwd(), "power645.jsonl"), path.join(process.cwd(), "data", "power645.jsonl")]
 };
 
 export interface SnapshotPayload {
@@ -14,58 +13,31 @@ export interface SnapshotPayload {
   body: string;
 }
 
-async function readSnapshotText(game: GameType): Promise<string> {
+export async function loadLocalSnapshot(game: GameType): Promise<SnapshotPayload> {
   const config = getGameConfig(game);
-  const url = LOCAL_SNAPSHOT_URLS[game];
-  const candidates = [
-    fileURLToPath(url),
-    decodeURIComponent(url.pathname),
-    path.join(process.cwd(), config.localSnapshotPath)
-  ];
-
+  const candidates = LOCAL_SNAPSHOT_CANDIDATES[game];
   let lastError: Error | null = null;
+  let body: string | null = null;
+  let sourcePath: string | null = null;
 
-  for (const candidate of candidates) {
+  for (const filePath of candidates) {
     try {
-      const absolutePath = path.resolve(candidate);
-      return await readFile(absolutePath, "utf8");
+      body = await readFile(filePath, "utf8");
+      sourcePath = filePath;
+      break;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
 
-  throw new Error(
-    `Unable to read local snapshot file for ${config.label}. Last error: ${lastError?.message ?? "unknown"}`
-  );
-}
-
-export async function loadLocalSnapshot(game: GameType): Promise<SnapshotPayload> {
-  const config = getGameConfig(game);
-  const body = await readSnapshotText(game);
-
-  return {
-    sourceLabel: `local://${config.localSnapshotPath}`,
-    body
-  };
-}
-
-export async function loadRemoteSnapshot(game: GameType): Promise<SnapshotPayload> {
-  const sourceUrl = resolveSourceUrl(game);
-
-  const sourceResponse = await fetch(sourceUrl, {
-    method: "GET",
-    cache: "no-store",
-    headers: {
-      "User-Agent": "vietlot-internal-dashboard"
-    }
-  });
-
-  if (!sourceResponse.ok) {
-    throw new Error(`Unable to fetch ${getGameConfig(game).label} source data (${sourceResponse.status})`);
+  if (body === null) {
+    throw new Error(
+      `Cannot read local snapshot for ${config.label}. Expected one of: ${candidates.join(", ")}. Last error: ${lastError?.message ?? "unknown"}`
+    );
   }
 
   return {
-    sourceLabel: sourceUrl,
-    body: await sourceResponse.text()
+    sourceLabel: `local://${sourcePath ?? config.localSnapshotPath}`,
+    body
   };
 }

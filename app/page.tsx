@@ -121,6 +121,7 @@ export default function HomePage() {
   const [manualDrawDate, setManualDrawDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [manualNumbers, setManualNumbers] = useState("");
   const [manualBonus, setManualBonus] = useState("");
+  const [manualJackpot2Value, setManualJackpot2Value] = useState("");
   const [manualSubmitting, setManualSubmitting] = useState(false);
   const [manualState, setManualState] = useState<SubmitState | null>(null);
   const latestDrawId = data?.latestDraw?.drawId;
@@ -169,6 +170,7 @@ export default function HomePage() {
     setManualState(null);
     if (query.game === "power645") {
       setManualBonus("");
+      setManualJackpot2Value("");
     }
   }, [query.game]);
 
@@ -248,9 +250,18 @@ export default function HomePage() {
       if (query.game === "power655" && manualBonus.trim()) {
         const parsedBonus = Number(manualBonus);
         if (!Number.isInteger(parsedBonus) || parsedBonus < 1 || parsedBonus > numberMax) {
-          throw new Error(`Số đặc biệt phải nằm trong khoảng 1..${numberMax}.`);
+          throw new Error(`Số Jackpot 2 phải nằm trong khoảng 1..${numberMax}.`);
         }
         bonus = parsedBonus;
+      }
+
+      let jackpot2Value: number | null = null;
+      if (query.game === "power655" && manualJackpot2Value.trim()) {
+        const parsedAmount = Number(manualJackpot2Value);
+        if (!Number.isInteger(parsedAmount) || parsedAmount < 0) {
+          throw new Error("Giá trị Jackpot 2 phải là số nguyên không âm.");
+        }
+        jackpot2Value = parsedAmount;
       }
 
       let token = apiToken.trim();
@@ -273,7 +284,8 @@ export default function HomePage() {
           drawId,
           drawDate: manualDrawDate,
           numbers,
-          bonus
+          bonus,
+          jackpot2Value
         })
       });
 
@@ -288,6 +300,7 @@ export default function HomePage() {
       });
       setManualNumbers("");
       setManualBonus("");
+      setManualJackpot2Value("");
       await loadPrediction();
     } catch (submitError) {
       setManualState({
@@ -409,7 +422,7 @@ export default function HomePage() {
       <section className={styles.manualCard}>
         <h2>Nhập kỳ quay mới trực tiếp</h2>
         <p className={styles.manualHint}>
-          Nhập kết quả từng ngày để cập nhật dữ liệu nội bộ mà không cần chạy sync remote.
+          Nhập kết quả từng ngày để cập nhật dữ liệu nội bộ từ file offline, không dùng API GitHub.
         </p>
         <form className={styles.manualForm} onSubmit={onSubmitManual}>
           <label>
@@ -450,7 +463,7 @@ export default function HomePage() {
           </label>
 
           <label>
-            Số đặc biệt (chỉ 6/55)
+            Số Jackpot 2 (chỉ 6/55)
             <input
               type="number"
               min={1}
@@ -458,6 +471,18 @@ export default function HomePage() {
               value={manualBonus}
               onChange={(event) => setManualBonus(event.target.value)}
               placeholder={query.game === "power655" ? "Có thể để trống" : "Không dùng cho 6/45"}
+              disabled={query.game === "power645"}
+            />
+          </label>
+
+          <label>
+            Giá trị Jackpot 2 (VND, chỉ 6/55)
+            <input
+              type="number"
+              min={0}
+              value={manualJackpot2Value}
+              onChange={(event) => setManualJackpot2Value(event.target.value)}
+              placeholder={query.game === "power655" ? "Ví dụ: 30000000000" : "Không dùng cho 6/45"}
               disabled={query.game === "power645"}
             />
           </label>
