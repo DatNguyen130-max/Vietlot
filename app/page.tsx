@@ -129,6 +129,7 @@ export default function HomePage() {
   const [syncing, setSyncing] = useState(false);
   const [syncSource, setSyncSource] = useState<SyncSource>("github");
   const [apiToken, setApiToken] = useState("");
+  const [resultsTab, setResultsTab] = useState<"combos" | "heatmap">("combos");
   const [manualDrawId, setManualDrawId] = useState("");
   const [manualDrawDate, setManualDrawDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [manualNumbers, setManualNumbers] = useState("");
@@ -192,11 +193,6 @@ export default function HomePage() {
       setManualJackpot2Value("");
     }
   }, [query.game]);
-
-  const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    void loadPrediction();
-  };
 
   const onSync = async () => {
     setSyncing(true);
@@ -333,17 +329,24 @@ export default function HomePage() {
 
   return (
     <main className={styles.wrapper}>
-      <section className={styles.headerCard}>
-        <p className={styles.badge}>Internal Dashboard</p>
-        <h1>Ước tính xác suất dãy số cho kỳ quay tới ({query.game === "power655" ? "Power 6/55" : "Mega 6/45"})</h1>
-        <p className={styles.subtitle}>
-          Mô hình này chỉ dùng thống kê lịch sử và mô phỏng Monte Carlo để tham khảo nội bộ, không phải cam kết kết quả quay số. Gợi ý được tính lại mỗi khi đồng bộ dữ liệu mới sau kỳ quay.
-        </p>
+      <header className={styles.topBar}>
+        <div className={styles.brand}>
+          <p className={styles.kicker}>Vietlot · analytics</p>
+          <h1 className={styles.brandTitle}>
+            <span>{query.game === "power655" ? "6/55" : "6/45"}</span> · kỳ tới
+          </h1>
+          <p className={styles.subtitle}>
+            Thống kê lịch sử + Monte Carlo — tham khảo kỹ thuật, không phải cam kết quay thưởng. Đồng bộ GitHub → Supabase để cập nhật sau mỗi kỳ.
+          </p>
+        </div>
+      </header>
 
-        <form className={styles.form} onSubmit={onSubmit}>
-          <label>
-            Loại vé
+      <section className={styles.headerCard}>
+        <div className={styles.quickRow}>
+          <div className={styles.quickField}>
+            <label htmlFor="game-select">Loại vé</label>
             <select
+              id="game-select"
               value={query.game}
               onChange={(event) =>
                 setQuery((prev) => ({
@@ -358,215 +361,214 @@ export default function HomePage() {
                 </option>
               ))}
             </select>
-          </label>
+          </div>
 
-          <label>
-            Lookback (kỳ)
-            <input
-              type="number"
-              min={30}
-              max={2500}
-              value={query.lookback}
-              onChange={(event) =>
-                setQuery((prev) => ({
-                  ...prev,
-                  lookback: Number(event.target.value)
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            Simulations
-            <input
-              type="number"
-              min={1000}
-              max={120000}
-              step={1000}
-              value={query.simulations}
-              onChange={(event) =>
-                setQuery((prev) => ({
-                  ...prev,
-                  simulations: Number(event.target.value)
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            Top tổ hợp gợi ý (số bộ 6 số)
-            <input
-              type="number"
-              min={1}
-              max={30}
-              value={query.top}
-              onChange={(event) =>
-                setQuery((prev) => ({
-                  ...prev,
-                  top: Number(event.target.value)
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            Cửa sổ gần nhất
-            <input
-              type="number"
-              min={10}
-              max={query.lookback}
-              value={query.recentWindow}
-              onChange={(event) =>
-                setQuery((prev) => ({
-                  ...prev,
-                  recentWindow: Number(event.target.value)
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            Nguồn sync
+          <div className={styles.quickField}>
+            <label htmlFor="sync-src">Nguồn sync</label>
             <select
+              id="sync-src"
               value={syncSource}
               onChange={(event) => setSyncSource(event.target.value as SyncSource)}
-              title="GitHub: file JSONL raw trên repo crawl. Local: thư mục data/ trong repo Next.js."
+              title="GitHub: JSONL raw. Local: thư mục data/ trong deploy."
             >
               <option value="github">GitHub (raw JSONL)</option>
-              <option value="local">Local (data/ trong repo)</option>
+              <option value="local">Local / data/</option>
             </select>
-          </label>
+          </div>
 
           <div className={styles.actions}>
-            <button type="submit" disabled={loading}>
-              {loading ? "Đang tính..." : "Tính xác suất"}
+            <button type="button" className={styles.primaryBtn} onClick={() => void loadPrediction()} disabled={loading}>
+              {loading ? "Đang tính…" : "Tính xác suất"}
             </button>
             <button type="button" className={styles.secondaryBtn} onClick={onSync} disabled={syncing}>
-              {syncing ? "Đang sync..." : "Đồng bộ → Supabase"}
+              {syncing ? "Đang sync…" : "Đồng bộ Supabase"}
             </button>
           </div>
-        </form>
+        </div>
+
+        <details className={styles.advanced}>
+          <summary>Tham số mô hình · token · nhập tay kỳ quay</summary>
+          <div className={styles.advancedBody}>
+            <div className={styles.formGrid}>
+              <label>
+                Lookback (kỳ)
+                <input
+                  type="number"
+                  min={30}
+                  max={2500}
+                  value={query.lookback}
+                  onChange={(event) =>
+                    setQuery((prev) => ({
+                      ...prev,
+                      lookback: Number(event.target.value)
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Simulations
+                <input
+                  type="number"
+                  min={1000}
+                  max={120000}
+                  step={1000}
+                  value={query.simulations}
+                  onChange={(event) =>
+                    setQuery((prev) => ({
+                      ...prev,
+                      simulations: Number(event.target.value)
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Top tổ hợp
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={query.top}
+                  onChange={(event) =>
+                    setQuery((prev) => ({
+                      ...prev,
+                      top: Number(event.target.value)
+                    }))
+                  }
+                />
+              </label>
+              <label>
+                Cửa sổ gần nhất
+                <input
+                  type="number"
+                  min={10}
+                  max={query.lookback}
+                  value={query.recentWindow}
+                  onChange={(event) =>
+                    setQuery((prev) => ({
+                      ...prev,
+                      recentWindow: Number(event.target.value)
+                    }))
+                  }
+                />
+              </label>
+            </div>
+
+            <div className={styles.tokenField}>
+              <label htmlFor="sync-token">SYNC_TOKEN (tuỳ chọn)</label>
+              <input
+                id="sync-token"
+                type="password"
+                value={apiToken}
+                onChange={(event) => setApiToken(event.target.value)}
+                placeholder="Điền nếu Vercel đã bật bảo vệ API"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className={styles.manualBlock}>
+              <h3>Nhập tay một kỳ (sửa lỗi nhanh)</h3>
+              <p className={styles.manualHint}>
+                Luồng chính: crawl JSONL trên GitHub → nút Đồng bộ. Chỉ dùng form này khi cần vá dữ liệu.
+              </p>
+              <form className={styles.manualForm} onSubmit={onSubmitManual}>
+                <label>
+                  Draw ID
+                  <input
+                    type="number"
+                    min={1}
+                    value={manualDrawId}
+                    onChange={(event) => setManualDrawId(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Ngày quay
+                  <input type="date" value={manualDrawDate} onChange={(event) => setManualDrawDate(event.target.value)} required />
+                </label>
+                <label className={styles.manualFullRow}>
+                  Dãy 6 số
+                  <input
+                    type="text"
+                    value={manualNumbers}
+                    onChange={(event) => setManualNumbers(event.target.value)}
+                    placeholder={query.game === "power655" ? "1,5,12,22,33,44" : "2,8,19,21,34,45"}
+                    required
+                  />
+                </label>
+                <label>
+                  J2 (6/55)
+                  <input
+                    type="number"
+                    min={1}
+                    max={55}
+                    value={manualBonus}
+                    onChange={(event) => setManualBonus(event.target.value)}
+                    placeholder="Tuỳ chọn"
+                    disabled={query.game === "power645"}
+                  />
+                </label>
+                <label>
+                  Giá trị J2 VND
+                  <input
+                    type="number"
+                    min={0}
+                    value={manualJackpot2Value}
+                    onChange={(event) => setManualJackpot2Value(event.target.value)}
+                    placeholder="Tuỳ chọn"
+                    disabled={query.game === "power645"}
+                  />
+                </label>
+                <div className={styles.manualActions}>
+                  <button type="submit" disabled={manualSubmitting}>
+                    {manualSubmitting ? "Đang lưu…" : "Lưu kỳ quay"}
+                  </button>
+                </div>
+              </form>
+              {manualState && <p className={manualState.ok ? styles.success : styles.error}>{manualState.text}</p>}
+            </div>
+          </div>
+        </details>
 
         {error && <p className={styles.error}>{error}</p>}
-      </section>
-
-      <section className={styles.manualCard}>
-        <h2>Nhập kỳ quay mới trực tiếp</h2>
-        <p className={styles.manualHint}>
-          Dùng khi cần sửa nhanh một kỳ; luồng chính nên là crawl trên GitHub rồi bấm &quot;Đồng bộ → Supabase&quot; (nguồn GitHub) hoặc chờ cron Vercel.
-        </p>
-        <form className={styles.manualForm} onSubmit={onSubmitManual}>
-          <label>
-            Token API (SYNC_TOKEN)
-            <input
-              type="password"
-              value={apiToken}
-              onChange={(event) => setApiToken(event.target.value)}
-              placeholder="Nếu đã bật bảo mật token"
-            />
-          </label>
-
-          <label>
-            Draw ID
-            <input
-              type="number"
-              min={1}
-              value={manualDrawId}
-              onChange={(event) => setManualDrawId(event.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            Ngày quay (YYYY-MM-DD)
-            <input type="date" value={manualDrawDate} onChange={(event) => setManualDrawDate(event.target.value)} required />
-          </label>
-
-          <label>
-            Dãy 6 số
-            <input
-              type="text"
-              value={manualNumbers}
-              onChange={(event) => setManualNumbers(event.target.value)}
-              placeholder={query.game === "power655" ? "Ví dụ: 1,5,12,22,33,44" : "Ví dụ: 2,8,19,21,34,45"}
-              required
-            />
-          </label>
-
-          <label>
-            Số Jackpot 2 (chỉ 6/55)
-            <input
-              type="number"
-              min={1}
-              max={55}
-              value={manualBonus}
-              onChange={(event) => setManualBonus(event.target.value)}
-              placeholder={query.game === "power655" ? "Có thể để trống" : "Không dùng cho 6/45"}
-              disabled={query.game === "power645"}
-            />
-          </label>
-
-          <label>
-            Giá trị Jackpot 2 (VND, chỉ 6/55)
-            <input
-              type="number"
-              min={0}
-              value={manualJackpot2Value}
-              onChange={(event) => setManualJackpot2Value(event.target.value)}
-              placeholder={query.game === "power655" ? "Ví dụ: 30000000000" : "Không dùng cho 6/45"}
-              disabled={query.game === "power645"}
-            />
-          </label>
-
-          <div className={styles.manualActions}>
-            <button type="submit" disabled={manualSubmitting}>
-              {manualSubmitting ? "Đang lưu..." : "Lưu kỳ quay mới"}
-            </button>
-          </div>
-        </form>
-
-        {manualState && <p className={manualState.ok ? styles.success : styles.error}>{manualState.text}</p>}
       </section>
 
       {data && (
         <>
           <section className={styles.metrics}>
             <article>
-              <span>Kỳ quay dự kiến tiếp theo</span>
+              <span>Kỳ quay tiếp theo</span>
               {data.nextDraw ? (
                 <strong>
-                  {formatDrawDate(data.nextDraw.nextDrawDate)} ({data.nextDraw.weekdayVi}) — {data.nextDraw.scheduleDescriptionVi}
+                  {formatDrawDate(data.nextDraw.nextDrawDate)} · {data.nextDraw.weekdayVi}
+                  <br />
+                  <span style={{ fontWeight: 500, color: "var(--muted)", fontSize: "0.8rem" }}>{data.nextDraw.scheduleDescriptionVi}</span>
                 </strong>
               ) : (
                 <strong>—</strong>
               )}
             </article>
             <article>
-              <span>Latest draw ({data.gameLabel})</span>
+              <span>Kỳ mới nhất · {data.gameLabel}</span>
               {data.latestDraw ? (
                 <strong>
-                  #{String(data.latestDraw.drawId).padStart(5, "0")} ({formatDrawDate(data.latestDraw.drawDate)})
+                  #{String(data.latestDraw.drawId).padStart(5, "0")} · {formatDrawDate(data.latestDraw.drawDate)}
                 </strong>
               ) : (
-                <strong>Chưa có dữ liệu</strong>
+                <strong>—</strong>
               )}
             </article>
             <article>
-              <span>Dữ liệu dùng</span>
+              <span>Cửa sổ dữ liệu</span>
               <strong>{data.drawsUsed.toLocaleString("vi-VN")} kỳ</strong>
             </article>
             <article>
-              <span>Mô phỏng</span>
+              <span>Mô phỏng MC</span>
               <strong>{data.simulations.toLocaleString("vi-VN")}</strong>
-            </article>
-            <article>
-              <span>Confidence</span>
-              <strong>{data.confidenceScore.toFixed(2)} / 100</strong>
             </article>
           </section>
 
           <section className={styles.recommended}>
-            <h2>Bộ 6 số khuyến nghị theo xác suất biên cao nhất</h2>
+            <h2>Gợi ý 6 số · xác suất biên cao nhất</h2>
             <div className={styles.ballRow}>
               {data.recommendedNumbers.map((value) => (
                 <span key={value} className={styles.ball}>
@@ -574,53 +576,75 @@ export default function HomePage() {
                 </span>
               ))}
             </div>
-            <p className={styles.timestamp}>Generated at: {new Date(data.generatedAt).toLocaleString("vi-VN")}</p>
+            <p className={styles.timestamp}>
+              {new Date(data.generatedAt).toLocaleString("vi-VN", { hour12: false })} · UTC {data.generatedAt.slice(11, 19)}
+            </p>
           </section>
 
-          <section className={styles.gridSection}>
-            <article className={styles.combinationsCard}>
-              <h3>Top {query.top} tổ hợp 6 số (Monte Carlo)</h3>
-              <div className={styles.comboList}>
-                {data.topCombinations.map((combo, index) => (
-                  <div key={combo.numbers.join("-")} className={styles.comboItem}>
-                    <div>
-                      <span className={styles.rank}>#{index + 1}</span>
-                      <strong>{combo.numbers.map((value) => String(value).padStart(2, "0")).join(" - ")}</strong>
-                    </div>
-                    <div className={styles.comboMeta}>
-                      <span>{toPercent(combo.probability)}</span>
-                      <span>{combo.estimatedOdds}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
+          <section className={styles.resultsCard}>
+            <div className={styles.tabs}>
+              <button
+                type="button"
+                className={resultsTab === "combos" ? styles.tabActive : ""}
+                onClick={() => setResultsTab("combos")}
+              >
+                Top {query.top} tổ hợp
+              </button>
+              <button
+                type="button"
+                className={resultsTab === "heatmap" ? styles.tabActive : ""}
+                onClick={() => setResultsTab("heatmap")}
+              >
+                Heatmap 1–{data.numberMax}
+              </button>
+            </div>
 
-            <article className={styles.heatmapCard}>
-              <h3>Xác suất từng số (1-{data.numberMax})</h3>
-              <div className={styles.heatmap}>
-                {data.numberProbabilities
-                  .slice()
-                  .sort((a, b) => a.number - b.number)
-                  .map((item) => {
-                    const ratio = maxProbability > 0 ? item.probability / maxProbability : 0;
-                    const fill = Math.max(6, Math.round(ratio * 100));
-
-                    return (
-                      <div
-                        key={item.number}
-                        className={styles.heatCell}
-                        style={{
-                          background: `linear-gradient(90deg, rgba(25,106,69,0.55) ${fill}%, rgba(255,255,255,0.9) ${fill}%)`
-                        }}
-                      >
-                        <span>{String(item.number).padStart(2, "0")}</span>
-                        <small>{toPercent(item.probability)}</small>
+            {resultsTab === "combos" ? (
+              <>
+                <p className={styles.panelTitle}>Monte Carlo · tần suất xuất hiện tổ hợp</p>
+                <div className={styles.comboList}>
+                  {data.topCombinations.map((combo, index) => (
+                    <div key={combo.numbers.join("-")} className={styles.comboItem}>
+                      <div>
+                        <span className={styles.rank}>#{index + 1}</span>
+                        <strong>{combo.numbers.map((value) => String(value).padStart(2, "0")).join(" · ")}</strong>
                       </div>
-                    );
-                  })}
-              </div>
-            </article>
+                      <div className={styles.comboMeta}>
+                        <span>{toPercent(combo.probability)}</span>
+                        <span>{combo.estimatedOdds}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className={styles.panelTitle}>Xác suất mô phỏng theo từng số</p>
+                <div className={styles.heatmap}>
+                  {data.numberProbabilities
+                    .slice()
+                    .sort((a, b) => a.number - b.number)
+                    .map((item) => {
+                      const ratio = maxProbability > 0 ? item.probability / maxProbability : 0;
+                      const fill = Math.max(8, Math.round(ratio * 100));
+
+                      return (
+                        <div
+                          key={item.number}
+                          className={styles.heatCell}
+                          style={{
+                            borderColor: `rgba(52, 211, 153, ${0.12 + ratio * 0.35})`,
+                            background: `linear-gradient(135deg, rgba(52,211,153,${0.05 + ratio * 0.12}) ${fill}%, rgba(0,0,0,0.15) ${fill}%)`
+                          }}
+                        >
+                          <span>{String(item.number).padStart(2, "0")}</span>
+                          <small>{toPercent(item.probability)}</small>
+                        </div>
+                      );
+                    })}
+                </div>
+              </>
+            )}
           </section>
         </>
       )}
