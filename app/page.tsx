@@ -64,7 +64,7 @@ const DEFAULT_QUERY: QueryParams = {
   game: "power655",
   lookback: 420,
   simulations: 40000,
-  top: 12,
+  top: 5,
   recentWindow: 60
 };
 
@@ -151,7 +151,14 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const response = await fetch(buildPredictUrl(query), { method: "GET", cache: "no-store" });
+      const response = await fetch(`${buildPredictUrl(query)}&_ts=${Date.now()}`, {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache"
+        }
+      });
       const payload = (await response.json()) as PredictionPayload & { error?: string };
 
       if (!response.ok) {
@@ -387,7 +394,7 @@ export default function HomePage() {
           </label>
 
           <label>
-            Top tổ hợp
+            Top tổ hợp gợi ý (số bộ 6 số)
             <input
               type="number"
               min={1}
@@ -572,7 +579,7 @@ export default function HomePage() {
 
           <section className={styles.gridSection}>
             <article className={styles.combinationsCard}>
-              <h3>Top tổ hợp 6 số</h3>
+              <h3>Top {query.top} tổ hợp 6 số (Monte Carlo)</h3>
               <div className={styles.comboList}>
                 {data.topCombinations.map((combo, index) => (
                   <div key={combo.numbers.join("-")} className={styles.comboItem}>

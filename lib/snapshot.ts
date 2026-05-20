@@ -13,16 +13,67 @@ export interface SnapshotPayload {
   body: string;
 }
 
+/** Strip accidental "KEY=value" / quotes when pasting from .env into Vercel value field */
+function normalizeGithubEnvValue(raw: string | undefined): string | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  let s = raw.trim();
+  if (!s) {
+    return undefined;
+  }
+
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+
+  const assignment = s.match(/^[A-Za-z_][A-Za-z0-9_]*\s*=\s*(.*)$/);
+  if (assignment) {
+    s = assignment[1].trim();
+    if (
+      (s.startsWith('"') && s.endsWith('"')) ||
+      (s.startsWith("'") && s.endsWith("'"))
+    ) {
+      s = s.slice(1, -1).trim();
+    }
+  }
+
+  return s || undefined;
+}
+
+function assertValidHttpUrl(candidate: string, hint: string): void {
+  try {
+    const u = new URL(candidate);
+    if (u.protocol !== "https:" && u.protocol !== "http:") {
+      throw new Error("not http(s)");
+    }
+  } catch {
+    throw new Error(
+      `Invalid GitHub JSONL URL (${hint}): "${candidate.slice(0, 120)}${candidate.length > 120 ? "…" : ""}". ` +
+        `On Vercel, set the variable value to the URL only — do not paste "GITHUB_JSONL_RAW_BASE=..." as the value.`
+    );
+  }
+}
+
 function resolveGithubJsonlUrl(game: GameType): string {
-  const specific =
-    game === "power655" ? process.env.GITHUB_POWER655_JSONL_URL?.trim() : process.env.GITHUB_POWER645_JSONL_URL?.trim();
+  const specific = normalizeGithubEnvValue(
+    game === "power655" ? process.env.GITHUB_POWER655_JSONL_URL : process.env.GITHUB_POWER645_JSONL_URL
+  );
 
   if (specific) {
+    assertValidHttpUrl(specific, `${game} GITHUB_POWER*_JSONL_URL`);
     return specific;
   }
 
-  const base = process.env.GITHUB_JSONL_RAW_BASE?.trim().replace(/\/$/, "");
+  const baseRaw = normalizeGithubEnvValue(process.env.GITHUB_JSONL_RAW_BASE);
+  const base = baseRaw?.replace(/\/$/, "") ?? "";
+
   if (base) {
+    assertValidHttpUrl(base, "GITHUB_JSONL_RAW_BASE");
     const fileName = game === "power655" ? "power655.jsonl" : "power645.jsonl";
     return `${base}/${fileName}`;
   }

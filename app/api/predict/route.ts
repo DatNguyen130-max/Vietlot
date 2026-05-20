@@ -137,13 +137,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const game = parseGameType(request.nextUrl.searchParams.get("game"));
     if (!game) {
-      return NextResponse.json({ error: "Invalid game. Use power655 or power645." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid game. Use power655 or power645." },
+        {
+          status: 400,
+          headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" }
+        }
+      );
     }
 
     const gameConfig = getGameConfig(game);
     const lookback = parseInteger(request.nextUrl.searchParams.get("lookback"), 300);
     const simulations = parseInteger(request.nextUrl.searchParams.get("simulations"), 25000);
-    const topCombinations = parseInteger(request.nextUrl.searchParams.get("top"), 10);
+    const topCombinations = parseInteger(request.nextUrl.searchParams.get("top"), 5);
     const recentWindow = parseInteger(request.nextUrl.searchParams.get("recentWindow"), 45);
 
     const { historical, bootstrap } = await loadHistoricalWithBootstrap(game, Math.max(lookback, 300));
@@ -158,21 +164,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           error: `Not enough ${gameConfig.label} historical data in Supabase (current: ${historical.length}). Run /api/sync?source=local to initialize data. ${bootstrapHint}`,
           bootstrap
         },
-        { status: 400 }
+        {
+          status: 400,
+          headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" }
+        }
       );
     }
 
     const prediction = estimateNextDraw(historical, gameConfig.maxNumber, { lookback, simulations, topCombinations, recentWindow });
     const nextDraw = getNextDrawInfo(game, historical.at(-1)?.drawDate ?? null);
 
-    return NextResponse.json({
-      game,
-      gameLabel: gameConfig.label,
-      ...prediction,
-      latestDraw: historical.at(-1) ?? null,
-      nextDraw,
-      bootstrap
-    });
+    const noStoreHeaders = {
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      Vary: "Cookie, Authorization"
+    };
+
+    return NextResponse.json(
+      {
+        game,
+        gameLabel: gameConfig.label,
+        ...prediction,
+        latestDraw: historical.at(-1) ?? null,
+        nextDraw,
+        bootstrap
+      },
+      { headers: noStoreHeaders }
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unexpected error";
 
@@ -180,7 +197,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       {
         error: message
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "private, no-store, max-age=0, must-revalidate"
+        }
+      }
     );
   }
 }

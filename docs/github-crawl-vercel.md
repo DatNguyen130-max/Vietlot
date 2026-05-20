@@ -9,14 +9,14 @@ Luồng đề xuất:
 ## Biến môi trường trên Vercel
 
 ```env
-GITHUB_JSONL_RAW_BASE=https://raw.githubusercontent.com/USER/REPO/main/data
+GITHUB_JSONL_RAW_BASE=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data
 ```
 
-hoặc chỉ định từng file:
+hoặc chỉ định từng file (cùng branch **`master`**):
 
 ```env
-GITHUB_POWER655_JSONL_URL=https://raw.githubusercontent.com/USER/REPO/main/data/power655.jsonl
-GITHUB_POWER645_JSONL_URL=https://raw.githubusercontent.com/USER/REPO/main/data/power645.jsonl
+GITHUB_POWER655_JSONL_URL=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data/power655.jsonl
+GITHUB_POWER645_JSONL_URL=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data/power645.jsonl
 ```
 
 Bắt buộc có `SUPABASE_*`. Nên bật `CRON_SECRET` (Vercel tự gửi `Authorization: Bearer …` cho Cron) và/hoặc `SYNC_TOKEN` cho nút sync thủ công.

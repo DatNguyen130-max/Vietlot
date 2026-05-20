@@ -18,7 +18,14 @@ Gợi ý bộ số **đổi theo dữ liệu lịch sử**: mỗi lần JSONL m�
 | `source=local` | File trong repo: `data/power655.jsonl`, `data/power645.jsonl` (dev hoặc đã commit sẵn). |
 | `source=github` | Raw JSONL trên GitHub; cấu hình `GITHUB_JSONL_RAW_BASE` hoặc URL từng file (khuyến nghị trên Vercel). |
 
-Chi tiết nối repo crawl + Vercel: [docs/github-crawl-vercel.md](./docs/github-crawl-vercel.md).
+**Dữ liệu cập nhật hàng ngày:** repo crawl [`thanhnhu/vietlott`](https://github.com/thanhnhu/vietlott) — branch **`master`**, file trong `data/`. Trên Vercel nên đặt:
+
+`GITHUB_JSONL_RAW_BASE=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data`
+
+*(Nếu bạn trỏ nhầm sang fork/repo khác hoặc nhánh `main` trong khi repo chỉ có `master`, sync sẽ kéo file cũ / 404.)*
+
+Chi tiết nối repo crawl + Vercel: [docs/github-crawl-vercel.md](./docs/github-crawl-vercel.md).  
+Tránh nhầm branch/repo khi sync: [docs/DATA_SOURCE.md](./docs/DATA_SOURCE.md).
 
 ## Triển khai nhanh
 
@@ -43,14 +50,16 @@ curl -X POST "https://YOUR_DOMAIN/api/sync?game=all&source=local" \
 SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
 
+# Nguồn khuyến nghị (crawl upstream, branch master):
+GITHUB_JSONL_RAW_BASE=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data
+
 # Bảo vệ API sync/manual (nếu đặt — nên bật trên production)
 SYNC_TOKEN=change-me
 CRON_SECRET=change-me
 
-# Một trong hai cách (GitHub):
-GITHUB_JSONL_RAW_BASE=https://raw.githubusercontent.com/USER/REPO/main/data
-# GITHUB_POWER655_JSONL_URL=...
-# GITHUB_POWER645_JSONL_URL=...
+# Tuỳ chọn: URL từng file thay cho GITHUB_JSONL_RAW_BASE
+# GITHUB_POWER655_JSONL_URL=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data/power655.jsonl
+# GITHUB_POWER645_JSONL_URL=https://raw.githubusercontent.com/thanhnhu/vietlott/master/data/power645.jsonl
 ```
 
 Vercel Cron dùng `CRON_SECRET`: không cần token trên query string; Vercel gửi header `Authorization: Bearer <CRON_SECRET>`.
@@ -58,7 +67,7 @@ Vercel Cron dùng `CRON_SECRET`: không cần token trên query string; Vercel g
 ## API
 
 ```http
-GET /api/predict?game=power655&lookback=420&simulations=40000&top=12&recentWindow=60
+GET /api/predict?game=power655&lookback=420&simulations=40000&top=5&recentWindow=60
 GET /api/predict?game=power645&...
 
 GET|POST /api/sync?game=all&source=local|github&token=...

@@ -253,10 +253,12 @@ export async function fetchHistoricalDraws(game: GameType, limit: number): Promi
   const { tableName } = getGameConfig(game);
   const supabase = getSupabaseAdmin();
 
+  // Order by draw_id (official sequence), not draw_date — old/bad rows with odd dates
+  // must not push the real latest draw out of the lookback window.
   const { data, error } = await supabase
     .from(tableName)
     .select("draw_id, draw_date, numbers, bonus")
-    .order("draw_date", { ascending: false })
+    .order("draw_id", { ascending: false })
     .limit(safeLimit);
 
   if (error) {
