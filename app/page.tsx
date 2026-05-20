@@ -37,6 +37,19 @@ interface NextDrawInfo {
   firstAfterLatest: string | null;
 }
 
+interface InferentialDiagnostics {
+  chiSquare: number;
+  degreesOfFreedom: number;
+  pValueVsUniform: number;
+  rejectsUniformAt005: boolean;
+  expectedCountPerNumber: number;
+  theoreticalMarginalInNextDraw: number;
+  cramersV: number;
+  comboSpaceSize: number;
+  expectedCountPerComboUnderUniform: number;
+  interpretationVi: string;
+}
+
 interface PredictionPayload {
   game: GameType;
   gameLabel: string;
@@ -48,12 +61,15 @@ interface PredictionPayload {
   recommendedNumbers: number[];
   topCombinations: CombinationProbability[];
   numberProbabilities: NumberProbability[];
+  model?: "heuristic" | "inferential";
+  inferential?: InferentialDiagnostics;
   latestDraw: LatestDraw | null;
   nextDraw?: NextDrawInfo;
 }
 
 interface QueryParams {
   game: GameType;
+  model: "inferential" | "heuristic";
   lookback: number;
   simulations: number;
   top: number;
@@ -62,6 +78,7 @@ interface QueryParams {
 
 const DEFAULT_QUERY: QueryParams = {
   game: "power655",
+  model: "inferential",
   lookback: 420,
   simulations: 40000,
   top: 5,
@@ -101,6 +118,7 @@ function buildPredictUrl(params: QueryParams): string {
     top: String(params.top),
     recentWindow: String(params.recentWindow)
   });
+  search.set("model", params.model);
 
   return `/api/predict?${search.toString()}`;
 }
@@ -139,12 +157,19 @@ export default function HomePage() {
   const [manualState, setManualState] = useState<SubmitState | null>(null);
   const latestDrawId = data?.latestDraw?.drawId;
 
-  const maxProbability = useMemo(() => {
+  /** Chuẩn hoá heatmap: heuristic theo xác suất MC; inferential theo độ lớn phần dư Pearson. */
+  const heatScale = useMemo(() => {
     if (!data || data.numberProbabilities.length === 0) {
-      return 0;
+      return { maxProbability: 0, maxAbsScore: 0 };
     }
 
-    return data.numberProbabilities[0].probability;
+    if (data.model === "inferential") {
+      const maxAbsScore = Math.max(...data.numberProbabilities.map((item) => Math.abs(item.score)), 0);
+      return { maxProbability: 0, maxAbsScore };
+    }
+
+    const maxProbability = Math.max(...data.numberProbabilities.map((item) => item.probability), 0);
+    return { maxProbability, maxAbsScore: 0 };
   }, [data]);
 
   const loadPrediction = useCallback(async () => {
@@ -336,7 +361,10 @@ export default function HomePage() {
             <span>{query.game === "power655" ? "6/55" : "6/45"}</span> · kỳ tới
           </h1>
           <p className={styles.subtitle}>
-            Thống kê lịch sử + Monte Carlo — tham khảo kỹ thuật, không phải cam kết quay thưởng. Đồng bộ GitHub → Supabase để cập nhật sau mỗi kỳ.
+            {query.model === "inferential"
+              ? "Suy luận thống kê: kiểm định χ² so với tần suất đều, phần dư Pearson — chỉ mô tả mẫu quá khứ, không dự báo quay thưởng."
+              : "Thống kê lịch sử + Monte Carlo có trọng số (heuristic) — tham khảo kỹ thuật, không phải cam kết quay thưởng."}{" "}
+            Đồng bộ GitHub → Supabase để cập nhật sau mỗi kỳ.
           </p>
         </div>
       </header>
@@ -376,6 +404,24 @@ export default function HomePage() {
             </select>
           </div>
 
+          <div className={styles.quickField}>
+            <label htmlFor="model-select">Mô hình</label>
+            <select
+              id="model-select"
+              value={query.model}
+              onChange={(event) =>
+                setQuery((prev) => ({
+                  ...prev,
+                  model: event.target.value as "inferential" | "heuristic"
+                }))
+              }
+              title="Inferential: χ² vs đều + Pearson. Heuristic: Monte Carlo có trọng số."
+            >
+              <option value="inferential">Thống kê (χ² · Pearson)</option>
+              <option value="heuristic">Heuristic (Monte Carlo)</option>
+            </select>
+          </div>
+
           <div className={styles.actions}>
             <button type="button" className={styles.primaryBtn} onClick={() => void loadPrediction()} disabled={loading}>
               {loading ? "Đang tính…" : "Tính xác suất"}
@@ -406,13 +452,14 @@ export default function HomePage() {
                 />
               </label>
               <label>
-                Simulations
+                Simulations (chỉ heuristic)
                 <input
                   type="number"
                   min={1000}
                   max={120000}
                   step={1000}
                   value={query.simulations}
+                  disabled={query.model === "inferential"}
                   onChange={(event) =>
                     setQuery((prev) => ({
                       ...prev,
@@ -561,14 +608,41 @@ export default function HomePage() {
               <span>Cửa sổ dữ liệu</span>
               <strong>{data.drawsUsed.toLocaleString("vi-VN")} kỳ</strong>
             </article>
-            <article>
-              <span>Mô phỏng MC</span>
-              <strong>{data.simulations.toLocaleString("vi-VN")}</strong>
-            </article>
+            {data.model === "inferential" && data.inferential ? (
+              <article>
+                <span>Kiểm định χ² · p (vs đều)</span>
+                <strong>
+                  χ² = {data.inferential.chiSquare.toFixed(1)} (df = {data.inferential.degreesOfFreedom})
+                  <br />
+                  <span style={{ fontWeight: 500, color: "var(--muted)", fontSize: "0.8rem" }}>
+                    p = {data.inferential.pValueVsUniform.toFixed(4)}
+                    {data.inferential.rejectsUniformAt005 ? " · lệch ở α=5%" : " · không bác bỏ H₀ đều"}
+                    <br />
+                    Cramér V = {data.inferential.cramersV.toFixed(4)} · P(số ∈ vé | đều) ≈{" "}
+                    {(data.inferential.theoreticalMarginalInNextDraw * 100).toFixed(2)}%
+                  </span>
+                </strong>
+              </article>
+            ) : (
+              <article>
+                <span>Mô phỏng MC</span>
+                <strong>{data.simulations.toLocaleString("vi-VN")}</strong>
+              </article>
+            )}
           </section>
 
+          {data.model === "inferential" && data.inferential && (
+            <p className={styles.timestamp} style={{ marginTop: "-0.5rem", marginBottom: "1rem", maxWidth: "52rem" }}>
+              {data.inferential.interpretationVi}
+            </p>
+          )}
+
           <section className={styles.recommended}>
-            <h2>Gợi ý 6 số · xác suất biên cao nhất</h2>
+            <h2>
+              {data.model === "inferential"
+                ? "Gợi ý 6 số · phần dư Pearson dương lớn nhất (mô tả mẫu)"
+                : "Gợi ý 6 số · xác suất biên cao nhất (MC)"}
+            </h2>
             <div className={styles.ballRow}>
               {data.recommendedNumbers.map((value) => (
                 <span key={value} className={styles.ball}>
@@ -601,7 +675,11 @@ export default function HomePage() {
 
             {resultsTab === "combos" ? (
               <>
-                <p className={styles.panelTitle}>Monte Carlo · tần suất xuất hiện tổ hợp</p>
+                <p className={styles.panelTitle}>
+                  {data.model === "inferential"
+                    ? "Lịch sử · tổ hợp xuất hiện nhiều nhất trong cửa sổ (so với kỳ vọng đều)"
+                    : "Monte Carlo · tần suất xuất hiện tổ hợp"}
+                </p>
                 <div className={styles.comboList}>
                   {data.topCombinations.map((combo, index) => (
                     <div key={combo.numbers.join("-")} className={styles.comboItem}>
@@ -619,13 +697,46 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                <p className={styles.panelTitle}>Xác suất mô phỏng theo từng số</p>
+                <p className={styles.panelTitle}>
+                  {data.model === "inferential"
+                    ? "Phần dư Pearson (O−E)/√E · cùng cột: xác suất biên lý thuyết 6/N nếu cơ chế đều"
+                    : "Xác suất mô phỏng theo từng số"}
+                </p>
                 <div className={styles.heatmap}>
                   {data.numberProbabilities
                     .slice()
                     .sort((a, b) => a.number - b.number)
                     .map((item) => {
-                      const ratio = maxProbability > 0 ? item.probability / maxProbability : 0;
+                      if (data.model === "inferential") {
+                        const maxAbs = heatScale.maxAbsScore;
+                        const t = maxAbs > 0 ? Math.abs(item.score) / maxAbs : 0;
+                        const fill = Math.max(8, Math.round(t * 100));
+                        const pos = item.score >= 0;
+                        const g1 = pos ? 52 : 251;
+                        const g2 = pos ? 211 : 113;
+                        const g3 = pos ? 153 : 133;
+
+                        return (
+                          <div
+                            key={item.number}
+                            className={styles.heatCell}
+                            style={{
+                              borderColor: `rgba(${g1}, ${g2}, ${g3}, ${0.2 + t * 0.45})`,
+                              background: `linear-gradient(135deg, rgba(${g1},${g2},${g3},${0.06 + t * 0.14}) ${fill}%, rgba(0,0,0,0.15) ${fill}%)`
+                            }}
+                          >
+                            <span>{String(item.number).padStart(2, "0")}</span>
+                            <small>
+                              r {item.score >= 0 ? "+" : ""}
+                              {item.score.toFixed(2)}
+                              <br />
+                              π {toPercent(item.probability)}
+                            </small>
+                          </div>
+                        );
+                      }
+
+                      const ratio = heatScale.maxProbability > 0 ? item.probability / heatScale.maxProbability : 0;
                       const fill = Math.max(8, Math.round(ratio * 100));
 
                       return (

@@ -34,6 +34,7 @@ curl -X POST "https://YOUR_DOMAIN/api/sync?game=all&source=github" \
 ## Top 5 bộ số gợi ý (6/55 và 6/45)
 
 - Trên web: ô **Top tổ hợp gợi ý** mặc định **5**; có thể tăng tới 30.  
-- API: `GET /api/predict?game=power655&top=5` (tương tự `power645`).
+- API: `GET /api/predict?game=power655&top=5` (mặc định `model=inferential`; thêm `model=heuristic` cho Monte Carlo).
 
-`recommendedNumbers` là 6 số theo xác suất biên; `topCombinations` là **5 (hoặc N) bộ 6 số** xuất hiện nhiều trong mô phỏng.
+- **Inferential (mặc định):** `recommendedNumbers` = 6 số có phần dư Pearson dương lớn nhất (mô tả cửa sổ lookback); `topCombinations` = tổ hợp xuất hiện nhiều nhất trong lịch sử cửa sổ (kèm kỳ vọng đều `D/C(N,6)`).
+- **Heuristic:** `recommendedNumbers` theo xác suất biên mô phỏng; `topCombinations` theo tần suất trong MC.

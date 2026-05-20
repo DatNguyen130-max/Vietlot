@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getGameConfig, parseGameType } from "@/lib/games";
 import { estimateNextDraw } from "@/lib/predictor";
+import { estimateInferentialDraw } from "@/lib/predictor_inferential";
 import { getNextDrawInfo } from "@/lib/schedule";
 import { loadLocalSnapshot } from "@/lib/snapshot";
 import { fetchHistoricalDraws, parsePowerDrawJsonl, upsertPowerRows, type HistoricalDraw } from "@/lib/vietlott";
@@ -171,7 +172,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const prediction = estimateNextDraw(historical, gameConfig.maxNumber, { lookback, simulations, topCombinations, recentWindow });
+    const modelParam = request.nextUrl.searchParams.get("model");
+    const useHeuristic = modelParam === "heuristic";
+
+    const prediction = useHeuristic
+      ? estimateNextDraw(historical, gameConfig.maxNumber, { lookback, simulations, topCombinations, recentWindow })
+      : estimateInferentialDraw(historical, gameConfig.maxNumber, { lookback, topCombinations, recentWindow });
     const nextDraw = getNextDrawInfo(game, historical.at(-1)?.drawDate ?? null);
 
     const noStoreHeaders = {

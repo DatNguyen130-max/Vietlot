@@ -28,6 +28,26 @@ export interface PredictionResponse {
   recommendedNumbers: number[];
   topCombinations: CombinationProbability[];
   numberProbabilities: NumberProbability[];
+  /** `inferential`: chi-square vs đều + phần dư Pearson; `heuristic`: Monte Carlo có trọng số. */
+  model?: "heuristic" | "inferential";
+  inferential?: InferentialDiagnostics;
+}
+
+/** Kiểm định tần suất đều trên cửa sổ lookback (mỗi kỳ 6 bi, tổng 6D lần xuất hiện). */
+export interface InferentialDiagnostics {
+  chiSquare: number;
+  degreesOfFreedom: number;
+  /** p-value đuôi phải: P(Χ² ≥ quan sát | H₀ đều). */
+  pValueVsUniform: number;
+  rejectsUniformAt005: boolean;
+  expectedCountPerNumber: number;
+  /** Nếu mỗi kỳ rút 6 số đều ngẫu nhiên: P(số k trong kỳ tiếp theo) = 6/N. */
+  theoreticalMarginalInNextDraw: number;
+  cramersV: number;
+  comboSpaceSize: number;
+  /** E[số lần một tổ hợp 6 số cố định xuất hiện trong D kỳ] = D / C(N,6). */
+  expectedCountPerComboUnderUniform: number;
+  interpretationVi: string;
 }
 
 export interface PredictionOptions {
@@ -245,6 +265,7 @@ export function estimateNextDraw(
     confidenceScore: computeConfidence(weights, numberCount),
     recommendedNumbers,
     topCombinations: topCombinationList,
-    numberProbabilities
+    numberProbabilities,
+    model: "heuristic"
   };
 }

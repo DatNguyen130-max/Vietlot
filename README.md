@@ -70,11 +70,18 @@ Vercel Cron dùng `CRON_SECRET`: không cần token trên query string; Vercel g
 GET /api/predict?game=power655&lookback=420&simulations=40000&top=5&recentWindow=60
 GET /api/predict?game=power645&...
 
+# Mặc định (bỏ `model`): suy luận thống kê — χ² goodness-of-fit vs tần suất đều, phần dư Pearson, Cramér V,
+# xác suất biên lý thuyết 6/N; `simulations` được bỏ qua.
+GET /api/predict?game=power655&model=inferential&lookback=420&top=5&recentWindow=60
+
+# Heuristic: Monte Carlo có trọng số (như trước); cần `simulations`.
+GET /api/predict?game=power655&model=heuristic&lookback=420&simulations=40000&top=5&recentWindow=60
+
 GET|POST /api/sync?game=all&source=local|github&token=...
 POST /api/manual?token=...
 ```
 
-Phản hồi `/api/predict` có thêm `nextDraw` (ngày kỳ dự kiến, thứ tiếng Việt, mô tả lịch).
+Phản hồi `/api/predict` có thêm `nextDraw` (ngày kỳ dự kiến, thứ tiếng Việt, mô tả lịch). Với `model=inferential` (mặc định) có thêm `inferential` (χ², df, p-value, v.v.).
 
 ## Nhập tay kỳ quay mới
 
